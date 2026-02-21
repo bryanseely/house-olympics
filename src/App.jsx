@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc, deleteDoc, addDoc } from 'firebase/firestore';
-import { Trophy, Star, Gamepad2, Zap, Settings, UserPlus, ListTodo, History, Check, X, RefreshCw, Coffee, Crown, ShieldAlert, Edit2, Trash2, Target } from 'lucide-react';
+import { Trophy, Star, Dices, Zap, Settings, UserPlus, ListTodo, History, Check, X, RefreshCw, Coffee, Crown, ShieldAlert, Edit2, Trash2, Target, Dumbbell, MonitorPlay, Search } from 'lucide-react';
 
 // --- FIREBASE INIT ---
 const firebaseConfig = {
@@ -17,6 +17,19 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = 'my-house-olympics'; // You can leave this as a hardcoded string
+
+// --- HELPER FUNCTIONS ---
+function getEventIcon(event, size = 24, className = "") {
+  if (!event) return <Dices size={size} className={className} />;
+  if (event.type === 'challenge') return <Star size={size} className={className} />;
+  if (event.type === 'break') return <Coffee size={size} className={className} />;
+  if (event.type === 'game') {
+    if (event.category === 'sport') return <Dumbbell size={size} className={className} />;
+    if (event.category === 'video_game') return <MonitorPlay size={size} className={className} />;
+    return <Dices size={size} className={className} />;
+  }
+  return <Dices size={size} className={className} />;
+}
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -52,7 +65,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // --- DATA FETCHING ---
+   // --- DATA FETCHING ---
   useEffect(() => {
     if (!user) return;
 
@@ -269,6 +282,8 @@ function Library({ players, events, db, appId, setConfirmDialog }) {
   const [eventForm, setEventForm] = useState({ name: '', type: 'game', category: 'game', powerups: [], description: '' });
   const [tempPowerup, setTempPowerup] = useState('');
   const [eventFilter, setEventFilter] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortOrder, setSortOrder] = useState('a-z');
 
   // Players logic
   const handleAddPlayer = async (e) => {
@@ -416,7 +431,7 @@ function Library({ players, events, db, appId, setConfirmDialog }) {
       {/* Events Form Section */}
       <div id="event-form" className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5 ring-1 ring-slate-100">
         <h2 className="text-xl font-black mb-4 flex items-center gap-2 text-slate-800">
-          <Gamepad2 className="text-indigo-500" /> {editingEvent ? 'Edit Event' : 'Add to Event Pool'}
+          <Dices className="text-indigo-500" /> {editingEvent ? 'Edit Event' : 'Add to Event Pool'}
         </h2>
         
         <form onSubmit={saveEvent} className="space-y-4">
@@ -508,41 +523,68 @@ function Library({ players, events, db, appId, setConfirmDialog }) {
 
       {/* Events List Section */}
       <div className="space-y-3 mt-6">
-        <div className="flex items-center justify-between px-2 mb-2">
-          <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest">Current Event Pool</h3>
-          <select 
-             value={eventFilter} 
-             onChange={(e) => setEventFilter(e.target.value)}
-             className="bg-white border border-slate-200 text-xs font-bold text-slate-600 rounded-lg px-3 py-1.5 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer"
-          >
-             <option value="all">All Events</option>
-             <option value="sport">Sports Only</option>
-             <option value="game">Games Only</option>
-             <option value="video_game">Video Games Only</option>
-             <option value="challenge">Challenges</option>
-             <option value="break">Breaks</option>
-          </select>
+        <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest px-2 mb-2">Current Event Pool</h3>
+        
+        {/* Search & Filters */}
+        <div className="flex flex-col gap-2 px-1 mb-4">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+              type="text" 
+              placeholder="Search event pool..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
+            />
+          </div>
+          <div className="flex gap-2">
+            <select 
+               value={eventFilter} 
+               onChange={(e) => setEventFilter(e.target.value)}
+               className="flex-1 bg-white border border-slate-200 text-xs font-bold text-slate-600 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer"
+            >
+               <option value="all">All Types</option>
+               <option value="sport">Sports</option>
+               <option value="game">Board/Card Games</option>
+               <option value="video_game">Video Games</option>
+               <option value="challenge">Challenges</option>
+               <option value="break">Breaks</option>
+            </select>
+            <select 
+               value={sortOrder} 
+               onChange={(e) => setSortOrder(e.target.value)}
+               className="flex-1 bg-white border border-slate-200 text-xs font-bold text-slate-600 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer"
+            >
+               <option value="a-z">A-Z</option>
+               <option value="z-a">Z-A</option>
+               <option value="newest">Recently Added</option>
+            </select>
+          </div>
         </div>
+
         {events.filter(e => {
+            if (searchQuery && !e.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
             if (eventFilter === 'all') return true;
             if (eventFilter === 'challenge') return e.type === 'challenge';
             if (eventFilter === 'break') return e.type === 'break';
             const cat = e.category || 'game';
             return e.type === 'game' && cat === eventFilter;
+        }).sort((a, b) => {
+            if (sortOrder === 'a-z') return a.name.localeCompare(b.name);
+            if (sortOrder === 'z-a') return b.name.localeCompare(a.name);
+            return 0; // fallback to default order
         }).map(e => (
           <div key={e.id} className="flex items-center justify-between p-4 bg-white border border-slate-200 shadow-sm rounded-2xl group transition-all hover:border-indigo-200">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <div className={`p-2 rounded-xl ${e.type === 'game' ? 'bg-indigo-50 text-indigo-500' : e.type === 'challenge' ? 'bg-yellow-50 text-yellow-500' : 'bg-emerald-50 text-emerald-500'}`}>
-                {e.type === 'game' && <Gamepad2 size={24}/>}
-                {e.type === 'challenge' && <Star size={24}/>}
-                {e.type === 'break' && <Coffee size={24}/>}
+                {getEventIcon(e, 24)}
               </div>
               <div className="truncate pr-2">
                 <div className="flex items-center gap-2">
                   <div className="font-bold text-slate-800 text-base truncate">{e.name}</div>
                   {e.type === 'game' && (
                     <span className="bg-slate-100 text-slate-500 text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md shrink-0">
-                      {e.category === 'sport' ? 'Sport' : e.category === 'video_game' ? 'Video Game' : 'Game'}
+                      {e.category === 'sport' ? 'Sport' : e.category === 'video_game' ? 'Video Game' : 'Board/Card'}
                     </span>
                   )}
                 </div>
@@ -571,6 +613,10 @@ function SetupSession({ players, events, db, appId, setActiveTab }) {
   const [schedule, setSchedule] = useState([]);
   const [maxPowerups, setMaxPowerups] = useState(2);
   const [sessionName, setSessionName] = useState(`House Olympics ${new Date().getFullYear()}`);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [eventFilter, setEventFilter] = useState('all');
+  const [sortOrder, setSortOrder] = useState('a-z');
 
   const togglePlayer = (id) => {
     setSelectedPlayers(prev => ({ ...prev, [id]: !prev[id] }));
@@ -659,37 +705,99 @@ function SetupSession({ players, events, db, appId, setActiveTab }) {
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-5 overflow-hidden">
         <h2 className="text-lg font-black mb-4 text-slate-800 flex items-center gap-2"><ListTodo className="text-indigo-500"/> 3. Build Schedule</h2>
         
-        {/* Pool to pick from */}
-        <div className="mb-5 flex gap-3 overflow-x-auto pb-4 -mx-5 px-5 snap-x scrollbar-hide">
-          {events.map(e => (
-            <button 
-              key={e.id} 
-              onClick={() => addToSchedule(e)}
-              className={`snap-center shrink-0 w-32 p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-2 transition-transform hover:-translate-y-1 active:scale-95 ${e.type === 'game' ? 'bg-indigo-50 border-indigo-100 text-indigo-700' : e.type === 'challenge' ? 'bg-yellow-50 border-yellow-100 text-yellow-700' : 'bg-emerald-50 border-emerald-100 text-emerald-700'}`}
+        {/* Search & Filters for Schedule Builder */}
+        <div className="flex flex-col gap-2 mb-4">
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input 
+              type="text" 
+              placeholder="Search events to add..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
+            />
+          </div>
+          <div className="flex gap-2">
+            <select 
+               value={eventFilter} 
+               onChange={(e) => setEventFilter(e.target.value)}
+               className="flex-1 bg-slate-50 border border-slate-200 text-xs font-bold text-slate-600 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer"
             >
-              <div className="bg-white p-2 rounded-xl shadow-sm relative">
-                {e.type === 'game' && <Gamepad2 size={24}/>}
-                {e.type === 'challenge' && <Star size={24}/>}
-                {e.type === 'break' && <Coffee size={24}/>}
+               <option value="all">All Types</option>
+               <option value="sport">Sports</option>
+               <option value="game">Board/Card Games</option>
+               <option value="video_game">Video Games</option>
+               <option value="challenge">Challenges</option>
+               <option value="break">Breaks</option>
+            </select>
+            <select 
+               value={sortOrder} 
+               onChange={(e) => setSortOrder(e.target.value)}
+               className="flex-[0.5] bg-slate-50 border border-slate-200 text-xs font-bold text-slate-600 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm cursor-pointer"
+            >
+               <option value="a-z">A-Z</option>
+               <option value="z-a">Z-A</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Pool to pick from (Vertical List) */}
+        <div className="mb-6 h-[35vh] min-h-[250px] overflow-y-auto space-y-2 p-2 rounded-2xl bg-slate-50 border border-slate-200 shadow-inner">
+          {events.filter(e => {
+              if (searchQuery && !e.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+              if (eventFilter === 'all') return true;
+              if (eventFilter === 'challenge') return e.type === 'challenge';
+              if (eventFilter === 'break') return e.type === 'break';
+              const cat = e.category || 'game';
+              return e.type === 'game' && cat === eventFilter;
+          }).sort((a, b) => {
+              if (sortOrder === 'a-z') return a.name.localeCompare(b.name);
+              if (sortOrder === 'z-a') return b.name.localeCompare(a.name);
+              return 0; 
+          }).map(e => (
+            <div 
+              key={e.id} 
+              className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-indigo-300 transition-all group"
+            >
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${e.type === 'game' ? 'bg-indigo-50 text-indigo-500' : e.type === 'challenge' ? 'bg-yellow-50 text-yellow-500' : 'bg-emerald-50 text-emerald-500'}`}>
+                  {getEventIcon(e, 20)}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-bold text-slate-800 leading-tight">{e.name}</span>
+                  {e.type === 'game' && (
+                    <span className="text-[9px] uppercase tracking-widest font-bold text-slate-400 mt-0.5">
+                      {e.category === 'sport' ? 'Sport' : e.category === 'video_game' ? 'Video Game' : 'Board/Card Game'}
+                    </span>
+                  )}
+                  {e.type !== 'game' && (
+                     <span className="text-[9px] uppercase tracking-widest font-bold text-slate-400 mt-0.5">
+                      {e.type === 'challenge' ? 'Challenge' : 'Break'}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="flex flex-col items-center w-full px-1">
-                <span className="text-xs font-black text-center leading-tight mt-1 w-full truncate">{e.name}</span>
-                {e.type === 'game' && (
-                  <span className="text-[8px] uppercase tracking-widest font-bold opacity-60 mt-0.5">
-                    {e.category === 'sport' ? 'Sport' : e.category === 'video_game' ? 'Video Game' : 'Game'}
-                  </span>
-                )}
-              </div>
-            </button>
+              <button 
+                onClick={() => addToSchedule(e)} 
+                className="w-10 h-10 shrink-0 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-colors active:scale-95 shadow-sm"
+                aria-label={`Add ${e.name} to schedule`}
+              >
+                <span className="font-bold text-2xl leading-none -mt-1">+</span>
+              </button>
+            </div>
           ))}
-          {events.length === 0 && <p className="text-sm text-red-500 font-medium whitespace-nowrap">Go to Library to add events.</p>}
+          {events.length === 0 && (
+            <div className="h-full flex flex-col items-center justify-center text-slate-400 py-6 text-center">
+               <span className="text-sm font-medium">No matching events found.</span>
+            </div>
+          )}
         </div>
 
         {/* Current Schedule */}
         <div className="space-y-2 bg-slate-50 p-4 rounded-2xl border border-slate-200 min-h-[150px]">
           {schedule.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-400 py-6 text-center">
-               <div className="w-12 h-12 border-2 border-dashed border-slate-300 rounded-xl mb-2 flex items-center justify-center"><Gamepad2 size={20} className="text-slate-300"/></div>
+               <div className="w-12 h-12 border-2 border-dashed border-slate-300 rounded-xl mb-2 flex items-center justify-center"><Dices size={20} className="text-slate-300"/></div>
                <span className="text-sm font-bold">Tap events above to build your order</span>
             </div>
           ) : (
@@ -698,9 +806,7 @@ function SetupSession({ players, events, db, appId, setActiveTab }) {
                 <div className="flex items-center gap-3 overflow-hidden">
                   <span className="text-slate-400 font-black text-xs w-4">{index + 1}.</span>
                   <div className={`p-1.5 rounded-lg ${item.type === 'game' ? 'bg-indigo-50 text-indigo-500' : item.type === 'challenge' ? 'bg-yellow-50 text-yellow-500' : 'bg-emerald-50 text-emerald-500'}`}>
-                    {item.type === 'game' && <Gamepad2 size={16}/>}
-                    {item.type === 'challenge' && <Star size={16}/>}
-                    {item.type === 'break' && <Coffee size={16}/>}
+                    {getEventIcon(item, 16)}
                   </div>
                   <span className="font-bold text-sm text-slate-700 truncate">{item.name}</span>
                 </div>
@@ -919,9 +1025,7 @@ function ActiveSession({ session, db, appId, players, setPowerupModal, setChampi
           {/* Header */}
           <div className={`p-6 text-white flex items-center gap-4 ${currentEvent.type === 'game' ? 'bg-gradient-to-br from-indigo-500 to-indigo-700' : currentEvent.type === 'challenge' ? 'bg-gradient-to-br from-yellow-400 to-orange-500' : 'bg-gradient-to-br from-emerald-400 to-emerald-600'}`}>
             <div className="bg-white/20 p-3 rounded-2xl shadow-inner backdrop-blur-sm">
-              {currentEvent.type === 'game' && <Gamepad2 size={32}/>}
-              {currentEvent.type === 'challenge' && <Star size={32}/>}
-              {currentEvent.type === 'break' && <Coffee size={32}/>}
+              {getEventIcon(currentEvent, 32)}
             </div>
             <div>
               <div className="text-xs font-black uppercase tracking-widest opacity-80 mb-1">
