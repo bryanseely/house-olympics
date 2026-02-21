@@ -7,4 +7,5 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  base: '/house-olympics/', // Make sure this exactly matches your GitHub repo name!
 })
